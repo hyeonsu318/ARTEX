@@ -55,10 +55,10 @@ function AgentGridCard({
   async function del() {
     try {
       await api.deleteAgent(agent.key);
-      toast.success(`已删除 Agent「${agent.name}」`);
+      toast.success(`Agent「${agent.name}」을(를) 삭제했습니다`);
       onDeleted();
     } catch (e) {
-      toast.error("删除失败：" + (e as Error).message);
+      toast.error("삭제 실패: " + (e as Error).message);
     }
   }
   return (
@@ -70,26 +70,26 @@ function AgentGridCard({
           <span className="text-muted-foreground font-mono text-xs">{agent.key}</span>
           {agent.builtin ? (
             <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">
-              内置
+              내장
             </Badge>
           ) : (
             <Badge variant="outline" className="px-1.5 py-0 text-[10px]">
-              自定义
+              사용자 정의
             </Badge>
           )}
           {!agent.enabled && (
             <Badge variant="outline" className="text-destructive px-1.5 py-0 text-[10px]">
-              已停用
+              비활성화됨
             </Badge>
           )}
         </div>
         <p className="text-muted-foreground line-clamp-2 min-h-8 text-xs">
-          {agent.description || "（无描述）"}
+          {agent.description || "(설명 없음)"}
         </p>
         <div className="text-muted-foreground flex flex-wrap gap-1.5 text-[10px]">
           <span className="rounded border px-1.5 py-0.5">MCP {agent.mcp_count ?? 0}</span>
           <span className="rounded border px-1.5 py-0.5">Skill {agent.skill_count ?? 0}</span>
-          <span className="rounded border px-1.5 py-0.5">工具 {agent.tool_count ?? 0}</span>
+          <span className="rounded border px-1.5 py-0.5">도구 {agent.tool_count ?? 0}</span>
         </div>
       </button>
       {!agent.builtin && (
@@ -105,14 +105,14 @@ function AgentGridCard({
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>删除 Agent「{agent.name}」？</AlertDialogTitle>
+              <AlertDialogTitle>Agent「{agent.name}」을(를) 삭제하시겠습니까?</AlertDialogTitle>
               <AlertDialogDescription>
-                将一并删除它的提示词、变量、可见性与工具绑定。此操作不可撤销。
+                해당 Agent의 프롬프트, 변수, 가시성 및 도구 바인딩도 함께 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>取消</AlertDialogCancel>
-              <AlertDialogAction onClick={del}>删除</AlertDialogAction>
+              <AlertDialogCancel>취소</AlertDialogCancel>
+              <AlertDialogAction onClick={del}>삭제</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
@@ -132,14 +132,14 @@ function CreateAgentDialog({ onCreated }: { onCreated: (key: string) => void }) 
     setBusy(true);
     try {
       const a = await api.createAgent(key.trim(), name.trim(), description.trim());
-      toast.success(`已创建 Agent「${a.name}」`);
+      toast.success(`Agent「${a.name}」을(를) 생성했습니다`);
       setOpen(false);
       setKey("");
       setName("");
       setDescription("");
       onCreated(a.key);
     } catch (e) {
-      toast.error("创建失败：" + (e as Error).message);
+      toast.error("생성 실패: " + (e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -152,14 +152,14 @@ function CreateAgentDialog({ onCreated }: { onCreated: (key: string) => void }) 
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button size="sm">
-          <PlusIcon /> 新建 Agent
+          <PlusIcon /> 새 Agent
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>新建自定义 Agent</DialogTitle>
+          <DialogTitle>새 사용자 정의 Agent</DialogTitle>
           <DialogDescription>
-            创建一个会话型助手。key 用于内部标识，创建后不可更改；名称与描述用于识别。
+            대화형 어시스턴트를 만듭니다. key는 내부 식별용이며 생성 후 변경할 수 없고, 이름과 설명은 구분용입니다.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-2">
@@ -167,29 +167,29 @@ function CreateAgentDialog({ onCreated }: { onCreated: (key: string) => void }) 
             <Label htmlFor="agent-key">Key</Label>
             <Input
               id="agent-key"
-              placeholder="如 research_helper"
+              placeholder="예: research_helper"
               value={key}
               onChange={(e) => setKey(e.target.value)}
               className="font-mono"
             />
             {key.length > 0 && !keyOk && (
-              <span className="text-destructive text-xs">小写字母开头，仅含小写字母/数字/下划线</span>
+              <span className="text-destructive text-xs">소문자로 시작하며, 소문자/숫자/밑줄만 사용할 수 있습니다</span>
             )}
           </div>
           <div className="grid gap-1.5">
-            <Label htmlFor="agent-name">名称</Label>
+            <Label htmlFor="agent-name">이름</Label>
             <Input
               id="agent-name"
-              placeholder="如 研究助手"
+              placeholder="예: 리서치 도우미"
               value={name}
               onChange={(e) => setName(e.target.value)}
             />
           </div>
           <div className="grid gap-1.5">
-            <Label htmlFor="agent-desc">描述</Label>
+            <Label htmlFor="agent-desc">설명</Label>
             <Textarea
               id="agent-desc"
-              placeholder="一句话说明这个 Agent 是干什么的"
+              placeholder="이 Agent가 무엇을 하는지 한 문장으로 설명하세요"
               rows={2}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -198,7 +198,7 @@ function CreateAgentDialog({ onCreated }: { onCreated: (key: string) => void }) 
         </div>
         <DialogFooter>
           <Button onClick={create} disabled={!canCreate}>
-            创建
+            생성
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -225,7 +225,7 @@ export default function AgentsPage() {
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Agent</h1>
           <p className="text-muted-foreground text-sm">
-            内置 Agent 的提示词/配置，以及自定义会话 Agent 的创建与管理
+            내장 Agent의 프롬프트/설정, 그리고 사용자 정의 대화형 Agent의 생성 및 관리
           </p>
         </div>
         <CreateAgentDialog
@@ -238,12 +238,12 @@ export default function AgentsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Agent 清单</CardTitle>
-          <CardDescription>共 {agents.length} 个</CardDescription>
+          <CardTitle>Agent 목록</CardTitle>
+          <CardDescription>총 {agents.length}개</CardDescription>
         </CardHeader>
         <CardContent>
           {agents.length === 0 ? (
-            <p className="text-muted-foreground py-6 text-center text-sm">（暂无 Agent）</p>
+            <p className="text-muted-foreground py-6 text-center text-sm">(Agent 없음)</p>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {agents.map((a) => (
@@ -267,11 +267,11 @@ export default function AgentsPage() {
                   <span className="text-muted-foreground font-mono text-xs">{editing.key}</span>
                   {!editing.builtin && (
                     <Badge variant="outline" className="px-1.5 py-0 text-[10px]">
-                      自定义
+                      사용자 정의
                     </Badge>
                   )}
                 </SheetTitle>
-                <SheetDescription>{editing.description || "提示词、配置、可见资源与工具绑定"}</SheetDescription>
+                <SheetDescription>{editing.description || "프롬프트, 설정, 표시 리소스 및 도구 바인딩"}</SheetDescription>
               </SheetHeader>
               <AgentEditor agentKey={editing.key} onSaved={reload} />
             </>

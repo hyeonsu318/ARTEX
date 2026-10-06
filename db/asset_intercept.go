@@ -13,8 +13,8 @@ type AssetInterceptRule struct {
 	Pattern   string    `json:"pattern"`
 	Note      string    `json:"note"`
 	Builtin   bool      `json:"builtin"`
-	// Action 仅用于任务级规则：'block'=拦截 'allow'=允许(白名单)。
-	// 全局规则(asset_intercept_rules)不带此列，恒为空，视为拦截。
+	// Action은 작업 단위 규칙에서만 쓴다: 'block'=차단 'allow'=허용(화이트리스트).
+	// 전역 규칙(asset_intercept_rules)은 이 컬럼이 없어 항상 비어 있으며, 차단으로 간주한다.
 	Action    string    `json:"action,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`

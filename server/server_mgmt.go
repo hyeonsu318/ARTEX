@@ -67,7 +67,7 @@ var reAgentKey = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
 // pgReady returns the PG handle, or writes 503 and returns nil if unavailable.
 func (s *Server) pg(w http.ResponseWriter) *db.DB {
 	if s.m.pg == nil {
-		writeErr(w, 503, "管理后台数据源(PostgreSQL)未连接")
+		writeErr(w, 503, "관리 백오피스 데이터 소스(PostgreSQL)에 연결되어 있지 않습니다")
 		return nil
 	}
 	return s.m.pg
@@ -119,7 +119,7 @@ func (s *Server) abortTaskDelete(taskID string) {
 			state := task.lifecycleSnapshot()
 			keepPaused = state.Paused || state.Queued
 			if getErr != nil {
-				log.Printf("[task-delete] task %s 读取持久状态失败，使用内存状态恢复屏障: %v", taskID, getErr)
+				log.Printf("[task-delete] task %s 영구 상태 읽기 실패, 메모리 상태로 배리어 복구: %v", taskID, getErr)
 			}
 		} else if getErr == nil {
 			// The request targeted a task that does not exist. Do not retain a
@@ -133,7 +133,7 @@ func (s *Server) abortTaskDelete(taskID string) {
 func (s *Server) pgDeleteTask(w http.ResponseWriter, r *http.Request) {
 	id, ok := canonicalTaskID(r.PathValue("id"))
 	if !ok {
-		writeErr(w, http.StatusBadRequest, "任务 id 无效")
+		writeErr(w, http.StatusBadRequest, "작업 id 가 유효하지 않습니다")
 		return
 	}
 	var opts DeleteTaskOptions
@@ -142,7 +142,7 @@ func (s *Server) pgDeleteTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !s.beginTaskDelete(id) {
-		writeErr(w, http.StatusConflict, "任务正在删除")
+		writeErr(w, http.StatusConflict, "작업이 삭제되는 중입니다")
 		return
 	}
 	deleted := false
@@ -158,7 +158,7 @@ func (s *Server) pgDeleteTask(w http.ResponseWriter, r *http.Request) {
 	drainCtx, cancelDrain := context.WithTimeout(r.Context(), taskDeleteDrainTimeout)
 	defer cancelDrain()
 	if err := s.waitTaskQuiescent(drainCtx, id); err != nil {
-		writeErr(w, http.StatusConflict, "任务仍有运行中的 Agent，删除已取消")
+		writeErr(w, http.StatusConflict, "작업에 실행 중인 Agent 가 있어 삭제가 취소되었습니다")
 		return
 	}
 
@@ -255,15 +255,15 @@ func (s *Server) pgCreateAgent(w http.ResponseWriter, r *http.Request) {
 	}
 	req.Key, req.Name = strings.TrimSpace(req.Key), strings.TrimSpace(req.Name)
 	if !reAgentKey.MatchString(req.Key) {
-		writeErr(w, 400, "key 需小写字母开头，仅含小写字母/数字/下划线")
+		writeErr(w, 400, "key 는 소문자로 시작해야 하며 소문자/숫자/밑줄만 포함할 수 있습니다")
 		return
 	}
 	if req.Name == "" {
-		writeErr(w, 400, "名称不能为空")
+		writeErr(w, 400, "이름은 비워 둘 수 없습니다")
 		return
 	}
 	if exist, _ := pg.GetAgentByKey(req.Key); exist != nil {
-		writeErr(w, 409, "该 key 已存在")
+		writeErr(w, 409, "해당 key 가 이미 존재합니다")
 		return
 	}
 	a, err := pg.CreateAgent(req.Key, req.Name, req.Description)
@@ -273,7 +273,7 @@ func (s *Server) pgCreateAgent(w http.ResponseWriter, r *http.Request) {
 	}
 	// starter prompt so the editor shows something editable from the start.
 	if err := pg.SeedPromptIfEmpty(a.ID, agent.DefaultAssistantPrompt); err != nil {
-		log.Printf("[agents] seed starter prompt for %s 失败: %v", a.Key, err)
+		log.Printf("[agents] seed starter prompt for %s 실패: %v", a.Key, err)
 	}
 	writeJSON(w, 200, agentDTO(a))
 }
@@ -285,7 +285,7 @@ func (s *Server) pgUpdateAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if a.Builtin {
-		writeErr(w, 400, "内置 agent 不可修改名称/描述")
+		writeErr(w, 400, "내장 agent 는 이름/설명을 수정할 수 없습니다")
 		return
 	}
 	var req struct{ Name, Description string }
@@ -295,7 +295,7 @@ func (s *Server) pgUpdateAgent(w http.ResponseWriter, r *http.Request) {
 	}
 	req.Name = strings.TrimSpace(req.Name)
 	if req.Name == "" {
-		writeErr(w, 400, "名称不能为空")
+		writeErr(w, 400, "이름은 비워 둘 수 없습니다")
 		return
 	}
 	if err := pg.UpdateAgentMeta(a.Key, req.Name, req.Description); err != nil {
@@ -313,7 +313,7 @@ func (s *Server) pgDeleteAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if a.Builtin {
-		writeErr(w, 400, "内置 agent 不可删除")
+		writeErr(w, 400, "내장 agent 는 삭제할 수 없습니다")
 		return
 	}
 	if err := pg.DeleteAgent(a.Key); err != nil {
@@ -321,10 +321,10 @@ func (s *Server) pgDeleteAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := pg.RemoveAgentFromToolBindings(a.Key); err != nil {
-		log.Printf("[agents] 清理 %s 工具绑定失败: %v", a.Key, err)
+		log.Printf("[agents] %s 도구 바인딩 정리 실패: %v", a.Key, err)
 	}
 	if err := pg.DeleteTriggersForAgent(a.Key); err != nil {
-		log.Printf("[agents] 清理 %s 触发器失败: %v", a.Key, err)
+		log.Printf("[agents] %s 트리거 정리 실패: %v", a.Key, err)
 	}
 	writeJSON(w, 200, map[string]any{"deleted": a.Key})
 }
@@ -361,9 +361,9 @@ func (s *Server) pgSaveAgentConfig(w http.ResponseWriter, r *http.Request) {
 		RunSeconds       *int  `json:"run_seconds"`
 		WebSearch        *bool `json:"web_search"`
 		InteractiveShell *bool `json:"interactive_shell"`
-		// llm_profile_id 三态:字段缺省=不动;显式 null=解绑(跟随任务/全局);数字=绑定该 profile。
+		// llm_profile_id 3상태: 필드 생략=변경 없음; 명시적 null=바인딩 해제(작업/전역 설정을 따름); 숫자=해당 profile 바인딩.
 		LLMProfileID json.RawMessage `json:"llm_profile_id"`
-		// P3 触发后处理策略(三者一起可选,提供任一即整体写入;未提供则不动)。
+		// P3 트리거 후처리 정책(셋 모두 선택 사항이며, 하나라도 제공하면 전체를 기록하고 제공하지 않으면 변경하지 않는다).
 		TriggerRunMode     *string `json:"trigger_run_mode"`
 		TriggerMergeMode   *string `json:"trigger_merge_mode"`
 		TriggerMaxParallel *int    `json:"trigger_max_parallel"`
@@ -373,15 +373,15 @@ func (s *Server) pgSaveAgentConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	profileChanged := false
-	if req.LLMProfileID != nil { // key present (数字 或 null)
+	if req.LLMProfileID != nil { // key present (숫자 또는 null)
 		var id *int64
 		if err := json.Unmarshal(req.LLMProfileID, &id); err != nil {
-			writeErr(w, 400, "llm_profile_id 格式错误")
+			writeErr(w, 400, "llm_profile_id 형식이 올바르지 않습니다")
 			return
 		}
-		if id != nil { // 绑定:校验目标 profile 有效
+		if id != nil { // 바인딩: 대상 profile 이 유효한지 검증
 			if _, ok := s.loadProfileConfig(*id); !ok {
-				writeErr(w, 400, "指定的 LLM 配置不存在或无效")
+				writeErr(w, 400, "지정한 LLM 설정이 존재하지 않거나 유효하지 않습니다")
 				return
 			}
 		}
@@ -423,8 +423,8 @@ func (s *Server) pgSaveAgentConfig(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	// P3 触发策略:三者作为一组写入(SetAgentTriggerBehavior 一次写三列),缺的字段用
-	// 当前存量值回填,避免只传一个把另两个覆盖成默认。
+	// P3 트리거 정책: 셋을 한 묶음으로 기록한다(SetAgentTriggerBehavior 가 세 컬럼을 한 번에 기록). 빠진 필드는
+	// 현재 저장된 값으로 채워, 하나만 전달했을 때 나머지 둘이 기본값으로 덮어쓰이는 것을 방지한다.
 	if req.TriggerRunMode != nil || req.TriggerMergeMode != nil || req.TriggerMaxParallel != nil {
 		runMode, mergeMode, maxPar := a.TriggerRunMode, a.TriggerMergeMode, a.TriggerMaxParallel
 		if req.TriggerRunMode != nil {
@@ -483,7 +483,7 @@ func (s *Server) pgGetAgent(w http.ResponseWriter, r *http.Request) {
 	if sk == nil {
 		sk = []string{}
 	}
-	// 可选 LLM 配置列表(id/name/model/是否默认),供前端渲染 "默认模型" 下拉;当前绑定见 agent.llm_profile_id。
+	// 선택 가능한 LLM 설정 목록(id/name/model/기본 여부). 프런트엔드가 "기본 모델" 드롭다운을 렌더링하는 데 사용하며, 현재 바인딩은 agent.llm_profile_id 참고.
 	profs, _ := pg.ListProfiles()
 	llmProfiles := make([]map[string]any, 0, len(profs))
 	for _, p := range profs {
@@ -494,13 +494,13 @@ func (s *Server) pgGetAgent(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{
 		"agent": agentDTO(a), "prompt": cur, "variables": vars, "versions": vers,
 		"visibility":   map[string]any{"mcp": mcp, "skill": sk},
-		"llm_profiles": llmProfiles, // 可绑定的 LLM 配置候选
+		"llm_profiles": llmProfiles, // 바인딩 가능한 LLM 설정 후보
 
-		"wrapup_prompt":            a.WrapupPrompt,                  // 已保存的收尾提示词(空=用内置默认)
-		"wrapup_default":           agent.WrapupDefault(a.Key),      // 内置默认(供占位/恢复默认)
-		"wrapup_max_turns":         a.WrapupMaxTurns,                // 已保存的收尾轮数(0=用内置默认)
-		"wrapup_max_turns_default": agent.WrapupTurnsDefault(a.Key), // 内置默认轮数(供 "0=默认N" 提示)
-		// 任务级超时收尾词(仅 worker/planner 有内置默认;task_timeout_supported 供前端决定是否显示该分区)
+		"wrapup_prompt":            a.WrapupPrompt,                  // 저장된 마무리 프롬프트(비어 있으면 내장 기본값 사용)
+		"wrapup_default":           agent.WrapupDefault(a.Key),      // 내장 기본값(플레이스홀더/기본값 복원용)
+		"wrapup_max_turns":         a.WrapupMaxTurns,                // 저장된 마무리 라운드 수(0=내장 기본값 사용)
+		"wrapup_max_turns_default": agent.WrapupTurnsDefault(a.Key), // 내장 기본 라운드 수("0=기본 N" 안내용)
+		// 작업 단위 타임아웃 마무리 프롬프트(worker/planner 에만 내장 기본값이 있으며, task_timeout_supported 는 프런트엔드가 해당 섹션 표시 여부를 결정하는 데 쓰임)
 		"task_timeout_wrapup_supported":         agent.TaskTimeoutWrapupDefault(a.Key) != "",
 		"task_timeout_wrapup_prompt":            a.TaskTimeoutWrapupPrompt,
 		"task_timeout_wrapup_default":           agent.TaskTimeoutWrapupDefault(a.Key),
@@ -533,7 +533,7 @@ func (s *Server) pgSavePrompt(w http.ResponseWriter, r *http.Request) {
 }
 
 // pgResetPrompt restores an agent's prompt body to the in-code built-in default
-// (段 [A]). Only built-in agents have a code default; custom agents have none.
+// (섹션 [A]). Only built-in agents have a code default; custom agents have none.
 func (s *Server) pgResetPrompt(w http.ResponseWriter, r *http.Request) {
 	pg, a, ok := s.agentByKey(w, r)
 	if !ok {
@@ -541,7 +541,7 @@ func (s *Server) pgResetPrompt(w http.ResponseWriter, r *http.Request) {
 	}
 	tmpl, has := agent.BuiltinPromptSeeds()[a.Key]
 	if !has {
-		writeErr(w, 400, "该 agent 无内置默认提示词，无法恢复")
+		writeErr(w, 400, "해당 agent 에는 내장 기본 프롬프트가 없어 복원할 수 없습니다")
 		return
 	}
 	ver, err := pg.ResetPromptToDefault(a.ID, tmpl)
@@ -622,7 +622,7 @@ func (s *Server) pgSaveTaskTimeoutWrapup(w http.ResponseWriter, r *http.Request)
 		writeErr(w, 400, err.Error())
 		return
 	}
-	turns := a.TaskTimeoutWrapupMaxTurns // 未传则保留原值
+	turns := a.TaskTimeoutWrapupMaxTurns // 전달하지 않으면 기존 값 유지
 	if body.MaxTurns != nil {
 		turns = *body.MaxTurns
 		if turns < 0 {
@@ -738,7 +738,7 @@ func (s *Server) pgSetAgentVisibility(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{"ok": true})
 }
 
-// ---------- tools (内置工具目录) ----------
+// ---------- tools (내장 도구 목록) ----------
 
 func (s *Server) pgListTools(w http.ResponseWriter, r *http.Request) {
 	pg := s.pg(w)
@@ -757,7 +757,7 @@ func (s *Server) pgListTools(w http.ResponseWriter, r *http.Request) {
 	// catalog query, so agent assembly never pays for this aggregate.
 	counts, countErr := pg.ToolUsageCounts()
 	if countErr != nil {
-		log.Printf("[tools] 读取调用统计失败: %v", countErr)
+		log.Printf("[tools] 호출 통계 읽기 실패: %v", countErr)
 	} else {
 		for _, tool := range ts {
 			tool.Calls = counts[tool.Key]
@@ -782,7 +782,7 @@ func (s *Server) pgUpdateTool(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if cur == nil {
-		writeErr(w, 404, "工具不存在: "+key)
+		writeErr(w, 404, "도구가 존재하지 않습니다:"+key)
 		return
 	}
 	var body struct {
@@ -804,7 +804,7 @@ func (s *Server) pgUpdateTool(w http.ResponseWriter, r *http.Request) {
 }
 
 // pgResetTool overwrites a tool row with its code-defined defaults (description,
-// schema, agent binding) and re-enables it — the explicit "恢复默认" action, since
+// schema, agent binding) and re-enables it — the explicit "기본값 복원" action, since
 // startup seeding is first-insert-only and never overwrites edits.
 func (s *Server) pgResetTool(w http.ResponseWriter, r *http.Request) {
 	pg := s.pg(w)
@@ -839,7 +839,7 @@ func (s *Server) pgResetTool(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 200, map[string]any{"ok": true})
 		return
 	}
-	writeErr(w, 404, "非内置工具或不存在: "+key)
+	writeErr(w, 404, "내장 도구가 아니거나 존재하지 않습니다:"+key)
 }
 
 // ---------- mcp ----------
@@ -883,7 +883,7 @@ func (s *Server) pgSaveMCP(w http.ResponseWriter, r *http.Request) {
 		m.ID = id
 		ctx, cancel := context.WithTimeout(r.Context(), 45*time.Second)
 		if derr := s.discoverAndCacheMCP(ctx, &m); derr != nil {
-			log.Printf("[mcp] %s 添加后工具发现失败: %v", m.Name, derr)
+			log.Printf("[mcp] %s 추가 후 도구 탐색 실패: %v", m.Name, derr)
 		}
 		cancel()
 	}
@@ -924,13 +924,13 @@ func (s *Server) pgRefreshMCP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if target == nil {
-		writeErr(w, 404, "MCP 不存在")
+		writeErr(w, 404, "MCP 가 존재하지 않습니다")
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 45*time.Second)
 	defer cancel()
 	if err := s.discoverAndCacheMCP(ctx, target); err != nil {
-		writeErr(w, 502, "工具发现失败："+err.Error())
+		writeErr(w, 502, "도구 탐색 실패:"+err.Error())
 		return
 	}
 	tools, _ := pg.MCPToolsDetailed(id)
@@ -955,7 +955,7 @@ func (s *Server) pgMCPTools(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{"tools": tools})
 }
 
-// ---------- skills (文件系统) ----------
+// ---------- skills (파일 시스템) ----------
 
 type skillFileNode struct {
 	Name          string   `json:"name"`
@@ -994,7 +994,7 @@ func (s *Server) fsListSkills(w http.ResponseWriter, r *http.Request) {
 	if s.m.pg != nil {
 		stats, err := s.m.pg.SkillStats()
 		if err != nil {
-			log.Printf("[skills] 读取调用统计失败: %v", err)
+			log.Printf("[skills] 호출 통계 읽기 실패: %v", err)
 		}
 		for _, st := range stats {
 			statBySkill[st.Skill] = st
@@ -1033,7 +1033,7 @@ func (s *Server) fsSkillUsage(w http.ResponseWriter, r *http.Request) {
 	}
 	name := r.PathValue("name")
 	if !validSkillName(name) {
-		writeErr(w, 400, "非法 skill 名")
+		writeErr(w, 400, "잘못된 skill 이름")
 		return
 	}
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
@@ -1277,7 +1277,7 @@ func skillNameFromFrontmatter(md []byte) string {
 		}
 		if inFM && strings.HasPrefix(t, "name:") {
 			v := strings.TrimSpace(strings.TrimPrefix(t, "name:"))
-			return strings.Trim(v, `"'`) // name: "中文技能" 也认
+			return strings.Trim(v, `"'`) // name: "스킬 이름" 도 인식
 		}
 	}
 	return ""
@@ -1293,7 +1293,7 @@ func (s *Server) fsUploadSkill(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxSkillZipBytes)
 	file, hdr, err := r.FormFile("file")
 	if err != nil {
-		writeErr(w, 400, "缺少上传文件(表单字段 file)或超出大小限制")
+		writeErr(w, 400, "업로드 파일이 없거나(폼 필드 file) 크기 제한을 초과했습니다")
 		return
 	}
 	defer file.Close()
@@ -1307,7 +1307,7 @@ func (s *Server) fsUploadSkill(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, err.Error())
 		return
 	}
-	// entries carry UTF-8-decoded names (GBK 包也能读) and exclude archiver junk.
+	// entries carry UTF-8-decoded names (GBK 패키지도 읽을 수 있음) and exclude archiver junk.
 	entriesAll := skillZipEntries(zr)
 	if err := checkSkillZipMethods(entriesAll); err != nil {
 		writeErr(w, 400, err.Error())
@@ -1326,7 +1326,7 @@ func (s *Server) fsUploadSkill(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if skillMD == nil {
-		writeErr(w, 400, "压缩包内未找到 SKILL.md")
+		writeErr(w, 400, "압축 파일에서 SKILL.md 를 찾을 수 없습니다")
 		return
 	}
 	root := path.Dir(skillMD.name) // "." when SKILL.md is at the zip root
@@ -1338,7 +1338,7 @@ func (s *Server) fsUploadSkill(w http.ResponseWriter, r *http.Request) {
 	// derive + validate the skill name from the SKILL.md frontmatter.
 	md, err := readZipEntry(skillMD.f)
 	if err != nil {
-		writeErr(w, 400, "读取 SKILL.md 失败："+err.Error())
+		writeErr(w, 400, "SKILL.md 읽기 실패:"+err.Error())
 		return
 	}
 	name := skillNameFromFrontmatter(md)
@@ -1350,15 +1350,15 @@ func (s *Server) fsUploadSkill(w http.ResponseWriter, r *http.Request) {
 		name = strings.TrimSuffix(base, path.Ext(base))
 	}
 	if !validSkillName(name) {
-		writeErr(w, 400, "skill 名称无效（取自 SKILL.md 的 name 字段）："+name+
-			"（≤64 字符，字母开头，只能用小写字母/数字/连字符或中文等非 ASCII 字母，不能有空格、点、路径分隔符）")
+		writeErr(w, 400, "skill 이름이 유효하지 않습니다(SKILL.md 의 name 필드에서 가져옴):"+name+
+			"(64자 이하, 문자로 시작, 소문자/숫자/하이픈 또는 한글·한자 등 비 ASCII 문자만 사용 가능, 공백·점·경로 구분자 불가)")
 		return
 	}
 
 	skillPath := filepath.Join(s.skillDir, name)
 	overwrite := r.URL.Query().Get("overwrite") == "true"
 	if _, err := os.Stat(skillPath); err == nil && !overwrite {
-		writeErr(w, 409, "skill 已存在："+name+"（如需覆盖请确认后重试）")
+		writeErr(w, 409, "skill 이 이미 존재합니다:"+name+"(덮어쓰려면 확인 후 다시 시도하세요)")
 		return
 	}
 
@@ -1386,15 +1386,15 @@ func (s *Server) fsUploadSkill(w http.ResponseWriter, r *http.Request) {
 		}
 		clean, msg := skillRelPath(rel)
 		if msg != "" {
-			writeErr(w, 400, "压缩包含非法路径 "+e.name+"："+msg)
+			writeErr(w, 400, "압축 파일에 잘못된 경로가 있습니다"+e.name+": "+msg)
 			return
 		}
 		if entries++; entries > maxSkillEntries {
-			writeErr(w, 400, "压缩包文件过多")
+			writeErr(w, 400, "압축 파일의 파일이 너무 많습니다")
 			return
 		}
 		if f.UncompressedSize64 > maxSkillFileBytes {
-			writeErr(w, 400, "文件过大："+rel)
+			writeErr(w, 400, "파일이 너무 큽니다:"+rel)
 			return
 		}
 		dst := filepath.Join(tmp, clean)
@@ -1422,12 +1422,12 @@ func (s *Server) fsUploadSkill(w http.ResponseWriter, r *http.Request) {
 		}
 		total += n
 		if total > maxSkillTotalBytes {
-			writeErr(w, 400, "压缩包解压后过大")
+			writeErr(w, 400, "압축 해제 후 크기가 너무 큽니다")
 			return
 		}
 	}
 	if _, err := os.Stat(filepath.Join(tmp, "SKILL.md")); err != nil {
-		writeErr(w, 400, "解压后缺少 SKILL.md")
+		writeErr(w, 400, "압축 해제 후 SKILL.md 가 없습니다")
 		return
 	}
 
@@ -1435,7 +1435,7 @@ func (s *Server) fsUploadSkill(w http.ResponseWriter, r *http.Request) {
 		_ = os.RemoveAll(skillPath)
 	}
 	if err := os.Rename(tmp, skillPath); err != nil {
-		writeErr(w, 500, "安装失败："+err.Error())
+		writeErr(w, 500, "설치 실패:"+err.Error())
 		return
 	}
 	writeJSON(w, 201, map[string]any{"name": name, "files": entries})
@@ -1482,7 +1482,7 @@ func (s *Server) fsDeleteSkill(w http.ResponseWriter, r *http.Request) {
 const skillPathBlocked = `\%#?*:"<>|`
 
 // skillPathRune reports whether r may appear in a client-supplied skill path.
-// It is a blacklist over Unicode rather than an ASCII whitelist so that 中文 (and any
+// It is a blacklist over Unicode rather than an ASCII whitelist so that Chinese (and any
 // other script) file names work, while everything that makes path validation hard is
 // still refused: control/format characters, look-alike whitespace, separators.
 func skillPathRune(r rune) bool {
@@ -1492,9 +1492,9 @@ func skillPathRune(r rune) bool {
 	case strings.ContainsRune(skillPathBlocked, r):
 		return false
 	case unicode.Is(unicode.Cf, r), unicode.Is(unicode.Co, r), unicode.Is(unicode.Cs, r):
-		return false // zero-width joiners, bidi overrides (RLO 文件名伪装), private use
+		return false // zero-width joiners, bidi overrides (RLO 파일명 위장), private use
 	case r != ' ' && unicode.IsSpace(r):
-		return false // NBSP / 全角空格 之类：看着是空格，其实不是
+		return false // NBSP / 전각 공백 등: 공백처럼 보이지만 실은 아님
 	}
 	return true
 }
@@ -1809,9 +1809,9 @@ func (s *Server) pgSaveProfile(w http.ResponseWriter, r *http.Request) {
 	p := body.LLMProfile
 	p.APIKey = body.APIKey
 	p.Streaming = body.Streaming == nil || *body.Streaming
-	// 输出上限:负数无意义,归零(= 不发送该字段)。字段名开关只有 Chat Completions
-	// 用得上——anthropic 与 openai-responses 各自定死了字段名,存下来只会误导后续读者,
-	// 故非 openai 格式一律清空。未知取值同样清空,避免把 DB CHECK 的报错甩给用户。
+	// 출력 상한: 음수는 의미가 없으므로 0 으로 만든다(= 해당 필드를 보내지 않음). 필드명 스위치는 Chat Completions 에서만
+	// 쓸모가 있다 — anthropic 과 openai-responses 는 각자 필드명이 고정되어 있어 저장해 두면 이후 독자를 오도할 뿐이므로,
+	// openai 형식이 아니면 모두 비운다. 알 수 없는 값도 마찬가지로 비워, DB CHECK 오류가 사용자에게 그대로 노출되는 것을 피한다.
 	if p.MaxTokens < 0 {
 		p.MaxTokens = 0
 	}
@@ -1834,8 +1834,8 @@ func (s *Server) pgSaveProfile(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{"id": id})
 }
 
-// pgGetLLMRetryPolicy 返回全局重试策略(五层各自的次数+间隔)。未配置过 → 全零，
-// 前端把零显示成「默认」。
+// pgGetLLMRetryPolicy 는 전역 재시도 정책(다섯 계층 각각의 횟수+간격)을 반환한다. 설정한 적이 없으면 → 전부 0,
+// 프런트엔드는 0 을 「기본값」으로 표시한다.
 func (s *Server) pgGetLLMRetryPolicy(w http.ResponseWriter, r *http.Request) {
 	pg := s.pg(w)
 	if pg == nil {
@@ -1844,9 +1844,9 @@ func (s *Server) pgGetLLMRetryPolicy(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, pg.LLMRetryPolicy())
 }
 
-// pgSaveLLMRetryPolicy 保存全局重试策略。三个「跟着端点走」的层(建连/空响应/同
-// provider 安全窗口)是 provider 的构建参数或调用参数，改完必须让缓存里的 provider
-// 重建；熔断参数则直接推给进程级 Registry。
+// pgSaveLLMRetryPolicy 는 전역 재시도 정책을 저장한다. 「엔드포인트를 따라가는」 세 계층(연결 수립/빈 응답/동일
+// provider 안전 윈도우)은 provider 의 빌드 파라미터 또는 호출 파라미터이므로, 변경 후 캐시 안의 provider 를
+// 반드시 재구성해야 한다. 서킷 브레이커 파라미터는 프로세스 단위 Registry 에 직접 전달한다.
 func (s *Server) pgSaveLLMRetryPolicy(w http.ResponseWriter, r *http.Request) {
 	pg := s.pg(w)
 	if pg == nil {
@@ -1876,11 +1876,11 @@ func (s *Server) pgDeleteProfile(w http.ResponseWriter, r *http.Request) {
 	if err := pg.DeleteProfileContext(r.Context(), id); err != nil {
 		switch {
 		case errors.Is(err, db.ErrActiveLLMProfileDelete):
-			writeErr(w, 409, "当前激活的 LLM 配置不能删除，请先激活其他配置")
+			writeErr(w, 409, "현재 활성화된 LLM 설정은 삭제할 수 없습니다. 먼저 다른 설정을 활성화하세요")
 		case errors.Is(err, db.ErrLLMProfileReferencesChanged):
-			writeErr(w, 409, "LLM 配置正在被任务或会话修改，请重试")
+			writeErr(w, 409, "LLM 설정이 작업 또는 대화에서 수정 중입니다. 다시 시도하세요")
 		case errors.Is(err, context.DeadlineExceeded):
-			writeErr(w, 409, "等待 LLM 配置引用释放超时，请重试")
+			writeErr(w, 409, "LLM 설정 참조가 해제되기를 기다리다 시간이 초과되었습니다. 다시 시도하세요")
 		case errors.Is(err, db.ErrLLMProfileNotFound):
 			writeErr(w, 404, err.Error())
 		default:
@@ -1938,9 +1938,9 @@ func (s *Server) pgActivateProfile(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{"ok": true})
 }
 
-// pgLLMPoolStatus reports the failover ("轮询") switches, the resolved chain order
+// pgLLMPoolStatus reports the failover ("라운드로빈") switches, the resolved chain order
 // and every profile's circuit-breaker state — what the LLM page renders as the
-// "轮询顺序" strip and the per-card health badges.
+// "라운드로빈 순서" strip and the per-card health badges.
 func (s *Server) pgLLMPoolStatus(w http.ResponseWriter, r *http.Request) {
 	if s.pg(w) == nil {
 		return
@@ -1949,7 +1949,7 @@ func (s *Server) pgLLMPoolStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 // pgLLMPoolReset clears a tripped profile's circuit breaker so the next call
-// tries it again immediately ("立即恢复"). id=0 clears every profile.
+// tries it again immediately ("즉시 복구"). id=0 clears every profile.
 func (s *Server) pgLLMPoolReset(w http.ResponseWriter, r *http.Request) {
 	pg := s.pg(w)
 	if pg == nil {
@@ -1996,7 +1996,7 @@ func (s *Server) pgListModels(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if apiKey == "" {
-		writeJSON(w, 200, map[string]any{"ok": false, "error": "未提供 API Key"})
+		writeJSON(w, 200, map[string]any{"ok": false, "error": "API Key 가 제공되지 않았습니다"})
 		return
 	}
 
@@ -2064,19 +2064,19 @@ func (s *Server) pgListModels(w http.ResponseWriter, r *http.Request) {
 	for _, c := range candidates {
 		httpReq, err := http.NewRequestWithContext(r.Context(), http.MethodGet, c.url, nil)
 		if err != nil {
-			lastErr = "构建请求失败: " + err.Error()
+			lastErr = "요청 구성 실패:" + err.Error()
 			continue
 		}
 		httpReq.Header = c.hdr
 		resp, err := client.Do(httpReq)
 		if err != nil {
-			lastErr = "请求失败: " + err.Error()
+			lastErr = "요청 실패:" + err.Error()
 			continue
 		}
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
 		resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
-			lastErr = fmt.Sprintf("API 返回 %d: %s", resp.StatusCode, string(body[:min(len(body), 512)]))
+			lastErr = fmt.Sprintf("API 응답 %d: %s", resp.StatusCode, string(body[:min(len(body), 512)]))
 			continue
 		}
 		// Both OpenAI and Anthropic return {"data": [{"id": "..."},...]}.
@@ -2086,7 +2086,7 @@ func (s *Server) pgListModels(w http.ResponseWriter, r *http.Request) {
 			} `json:"data"`
 		}
 		if err := json.Unmarshal(body, &parsed); err != nil {
-			lastErr = "解析响应失败: " + err.Error()
+			lastErr = "응답 파싱 실패:" + err.Error()
 			continue
 		}
 		models := make([]string, 0, len(parsed.Data))
@@ -2106,20 +2106,20 @@ func (s *Server) pgListModels(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if lastErr == "" {
-		lastErr = "未获取到模型列表"
+		lastErr = "모델 목록을 가져오지 못했습니다"
 	}
 	writeJSON(w, 200, map[string]any{"ok": false, "error": lastErr})
 }
 
-// --- prompt template helpers (Go text/template + catalog 白名单) ---
+// --- prompt template helpers (Go text/template + catalog 화이트리스트) ---
 
 // globalPromptVars are runtime variables available to EVERY agent (built-in and
 // custom) regardless of its per-agent catalog. Each agent's render path fills them
 // (see agent.nowStr, rendered fresh each turn), so a prompt may always reference
 // {{.Now}} — e.g. subtract it from a fixed start stamp to reason about elapsed time.
 var globalPromptVars = []db.PromptVar{
-	{Name: "Now", Description: "服务端当前时间（每次运行实时刷新；可与固定起始时间相减判断已用时长）", Example: "2026-08-11 14:30:00 CST", Source: "runtime"},
-	{Name: "DataDir", Description: "服务端数据根目录（所有任务/会话产物的根；各 agent 实际写盘在其下的子目录，如 <DataDir>/<taskID>）", Example: "/app/data", Source: "runtime"},
+	{Name: "Now", Description: "서버의 현재 시간(실행할 때마다 실시간으로 갱신됨. 고정된 시작 시간과 빼서 경과 시간을 판단할 수 있음)", Example: "2026-08-11 14:30:00 CST", Source: "runtime"},
+	{Name: "DataDir", Description: "서버 데이터 루트 디렉터리(모든 작업/대화 산출물의 루트이며, 각 agent 는 그 아래 하위 디렉터리에 실제로 기록한다. 예: <DataDir>/<taskID>)", Example: "/app/data", Source: "runtime"},
 }
 
 // withGlobalVars appends the universal runtime vars onto an agent's own catalog,
@@ -2147,7 +2147,7 @@ func withGlobalVars(vars []db.PromptVar) []db.PromptVar {
 func validateTemplate(tmpl string, catalog []db.PromptVar) string {
 	t, err := template.New("p").Option("missingkey=error").Parse(tmpl)
 	if err != nil {
-		return "模板语法错误: " + err.Error()
+		return "템플릿 문법 오류:" + err.Error()
 	}
 	allowed := map[string]bool{}
 	for _, v := range catalog {
@@ -2155,7 +2155,7 @@ func validateTemplate(tmpl string, catalog []db.PromptVar) string {
 	}
 	for _, name := range templateFields(t) {
 		if !allowed[name] {
-			return "变量 {{." + name + "}} 不在该 agent 允许列表"
+			return "변수 {{." + name + "}} 는 해당 agent 의 허용 목록에 없습니다"
 		}
 	}
 	return ""

@@ -128,7 +128,7 @@ export async function http<T>(path: string, init?: RequestInit): Promise<T> {
       document.cookie = "artex_token=; path=/; max-age=0";
       window.location.href = "/login";
     }
-    throw new Error("未授权");
+    throw new Error("인증되지 않았습니다");
   }
   if (!r.ok) {
     const fallback = `${init?.method ?? "GET"} ${path}: ${r.status}`;
@@ -165,25 +165,25 @@ export async function http<T>(path: string, init?: RequestInit): Promise<T> {
 // Token is appended as ?token= because SSE can't carry cookies cross-origin.
 // mockReport returns a canned Markdown report for the demo.
 function mockReport(_task?: string): string {
-  return `# ARTEX 渗透测试报告 — Acme Corp
+  return `# ARTEX 침투 테스트 보고서 — Acme Corp
 
-## 概览
-- 范围：acme.com（含 www / admin / api / shop / vpn 子域）
-- 已确认发现：6 项（高危 3 · 中危 3 · 低危 2）
-- 引擎模式：exploring
+## 개요
+- 범위: acme.com (www / admin / api / shop / vpn 서브도메인 포함)
+- 확인된 발견 사항: 6건 (높음 3 · 중간 3 · 낮음 2)
+- 엔진 모드: exploring
 
-## 关键发现
-1. **[高] 后台默认口令** admin.acme.com admin/admin123 → 可完全接管后台。
-2. **[高] SQL 注入** www.acme.com/search?q= → 可读取 acme_prod 库。
-3. **[高] IDOR** api.acme.com/v1/orders?id= → 可越权读取他人订单（含手机号/地址）。
-4. **[中] 反射型 XSS**、**暴露 .git 源码**、**登录无速率限制**。
+## 주요 발견 사항
+1. **[높음] 관리자 기본 비밀번호** admin.acme.com admin/admin123 → 관리자 페이지 완전 장악 가능.
+2. **[높음] SQL 인젝션** www.acme.com/search?q= → acme_prod DB 읽기 가능.
+3. **[높음] IDOR** api.acme.com/v1/orders?id= → 권한 우회로 타인 주문 조회 가능 (전화번호/주소 포함).
+4. **[중간] 반사형 XSS**, **.git 소스 노출**, **로그인 시도 횟수 제한 없음**.
 
-## 建议
-- 后台强制改密 + 启用 MFA、封禁默认口令。
-- search 接口参数化查询、输出编码。
-- API 增加对象级授权校验（IDOR）、更换强 JWT 密钥。
+## 권고 사항
+- 관리자 비밀번호 강제 변경 + MFA 활성화, 기본 비밀번호 차단.
+- search 인터페이스에 파라미터화 쿼리 적용, 출력 인코딩.
+- API에 객체 수준 권한 검증(IDOR) 추가, 강력한 JWT 키로 교체.
 
-> （demo）本报告由 mock 数据生成，仅用于界面演示。`;
+> (demo) 이 보고서는 mock 데이터로 생성되었으며 화면 시연용입니다.`;
 }
 
 export function sseUrl(path: string): string {
@@ -211,8 +211,8 @@ const del = <T>(p: string, body?: unknown) =>
 const arr = <T>(x: T[] | null | undefined): T[] => x ?? [];
 const tq = (task?: string, sep: "?" | "&" = "?") => (task ? `${sep}task=${encodeURIComponent(task)}` : "");
 
-// findingFilterParams 把发现页的筛选条件序列化成 query string。列表 / 分组 /
-// 资产树 / 导出共用同一份,新增筛选项只改这里(后端也只解析这一份)。
+// findingFilterParams는 발견 페이지의 필터 조건을 query string으로 직렬화한다. 목록 / 그룹 /
+// 자산 트리 / 내보내기가 같은 구현을 공유하므로, 필터 항목을 추가할 때는 여기만 고치면 된다(백엔드도 이 한 곳만 파싱한다).
 function findingFilterParams(q: Omit<FindingQuery, "page" | "pageSize">): URLSearchParams {
   const p = new URLSearchParams();
   if (q.severity && q.severity !== "all") p.set("severity", q.severity);
@@ -233,7 +233,7 @@ function interceptPageQuery(page: number, size: number, filter: InterceptApprova
 }
 
 export const api = {
-  // 后端应用版本号（release 时由 ldflags 注入，默认 "dev"）。
+  // 백엔드 애플리케이션 버전 번호 (release 시 ldflags로 주입, 기본값 "dev").
   health: () => get<{ ok: boolean; service: string; version: string }>("/health"),
 
   // ---- auth ----
@@ -271,9 +271,9 @@ export const api = {
       company_ids: input.companyIds ?? [],
       timeout_seconds: input.timeoutSeconds ?? 0,
       seed_first_intent: input.seedFirstIntent ?? false,
-      plan_heartbeat_seconds: input.planHeartbeatSeconds ?? 0, // 0 = 后端归一到默认 600(10min)
-      coverage_enabled: input.coverageEnabled ?? true, // 默认开;false=关闭资产覆盖度功能
-      intercept_rules: input.interceptRules ?? [], // 任务级资产拦截规则
+      plan_heartbeat_seconds: input.planHeartbeatSeconds ?? 0, // 0 = 백엔드가 기본값 600(10min)으로 정규화
+      coverage_enabled: input.coverageEnabled ?? true, // 기본 켜짐; false=자산 커버리지 기능 끔
+      intercept_rules: input.interceptRules ?? [], // 작업 단위 자산 차단 규칙
     }),
   taskCategories: () => get<{ categories: TaskCategory[] }>("/task-categories").then((r) => arr(r.categories)),
   updateTask: (id: string, input: { name?: string; pinned?: boolean }) => patch<Task>(`/tasks/${id}`, input),
@@ -284,7 +284,7 @@ export const api = {
   deleteTaskCategory: (id: number) => del<{ deleted: number }>(`/task-categories/${id}`),
   updateTaskCategory: (taskId: string, categoryId?: number) =>
     patch<Task>(`/tasks/${taskId}/category`, { category_id: categoryId ?? null }),
-  // categoryId 省略/undefined = 移出分类（后端收到 null）
+  // categoryId 생략/undefined = 분류에서 제거 (백엔드는 null을 받음)
   updateTasksCategory: (taskIds: string[], categoryId?: number) =>
     post<{ items: BatchCategoryItem[]; category: TaskCategory | null }>("/tasks/category/batch", {
       task_ids: taskIds,
@@ -342,7 +342,7 @@ export const api = {
     intentId: string,
     action: "pause" | "resume" | "cancel",
     reason?: string,
-    // cancel 专用:soft(默认,假删除,意图置 deleted + 记删除原因)| hard(真删除,级联移除独占子孙)。
+    // cancel 전용: soft(기본, 가삭제, 의도를 deleted로 두고 삭제 사유 기록) | hard(실제 삭제, 독점 하위 항목까지 연쇄 제거).
     mode?: "soft" | "hard",
   ) =>
     post<{
@@ -358,58 +358,58 @@ export const api = {
       request_id: string;
     }>(`/tasks/${taskId}/intents/${intentId}/messages`, { message, request_id: requestId }),
   taskLLMResolution: (id: string) => get<TaskLLMResolutions>(`/tasks/${id}/llm/resolution`),
-  // 重跑一条没跑成功的意图(blocked/exhausted/stopped)：置回 open，worker 会重新认领、从头再跑。
+  // 성공하지 못한 의도(blocked/exhausted/stopped)를 재실행: open으로 되돌리면 worker가 다시 가져가 처음부터 다시 실행한다.
   rerunIntent: (taskId: string, intentId: string) =>
     post<{ id: string; reopened: number }>(`/tasks/${taskId}/intents/${intentId}/rerun`),
-  // 批量重跑本任务全部 blocked 意图（一次网络/LLM 断连导致多条 blocked 时一键全部重试）。
+  // 이 작업의 blocked 의도를 일괄 재실행 (네트워크/LLM 연결 끊김으로 blocked가 여러 개 생겼을 때 한 번에 모두 재시도).
   rerunBlocked: (taskId: string) => post<{ id: string; reopened: number }>(`/tasks/${taskId}/intents/rerun-blocked`),
   setActive: (id: string) => post<{ active: string }>("/active", { id }),
   // ---- stats ----
   stats: (task?: string) => get<Stats>(`/stats${tq(task)}`),
-  // 资产测试覆盖度(粗估，供参考)：范围内资产被 fact 碰过的占比 + 按类型的 总数/已测。
+  // 자산 테스트 커버리지(대략적 추정, 참고용): 범위 내 자산 중 fact에 접촉된 비율 + 유형별 전체/테스트 완료 수.
   taskCoverage: (id: string) =>
     get<{
-      enabled: boolean; // 资产覆盖度功能是否开启；false 时其余字段为零值
+      enabled: boolean; // 자산 커버리지 기능 사용 여부; false일 때 나머지 필드는 0 값
       scope_rows: number;
       denominator: number;
       tested: number;
       pct: number | null;
       by_type: { type: string; total: number; tested: number }[];
     }>(`/tasks/${id}/coverage`),
-  // 资产覆盖图：范围内全部资产 + 连接用的根域名/公司节点，含 tested/in_scope。
+  // 자산 커버리지 그래프: 범위 내 모든 자산 + 연결용 루트 도메인/회사 노드, tested/in_scope 포함.
   taskCoverageGraph: (id: string) => get<CoverageGraphData>(`/tasks/${id}/coverage-graph`),
-  // 全局 llm_usage 聚合（仪表盘新版 token 视图）：按 profile 总量 + 按天分桶。
+  // 전역 llm_usage 집계 (대시보드 신규 token 뷰): profile별 총량 + 일 단위 버킷.
   usageStats: (days = 365) => get<UsageStats>(`/tokens/usage?days=${days}`),
-  // ---- 目标管理（总览）----
-  // 本任务全部目标（text/vulnclass/state）。
+  // ---- 목표 관리 (개요) ----
+  // 이 작업의 모든 목표 (text/vulnclass/state).
   taskGoals: (id: string) =>
     get<{ goals: TaskGoal[] | null }>(`/tasks/${id}/goals`).then((response) => ({ goals: arr(response.goals) })),
-  // 人工新增目标：写入图谱并通知 planner、复活任务。
+  // 수동 목표 추가: 그래프에 기록하고 planner에 알리며 작업을 되살린다.
   addGoal: (id: string, text: string, vulnclass?: string) =>
     post<TaskGoal>(`/tasks/${id}/goals`, { text, vulnclass: vulnclass ?? "" }),
-  // 人工修改目标文本（及 vulnclass）：通知 planner「由 old 变为 new」、复活任务。
+  // 수동 목표 텍스트(및 vulnclass) 수정: planner에 「old에서 new로 변경」을 알리고 작업을 되살린다.
   updateGoal: (id: string, goalId: string, text: string, vulnclass?: string) =>
     patch<TaskGoal>(`/tasks/${id}/goals/${goalId}`, { text, vulnclass: vulnclass ?? "" }),
-  // 人工删除目标（硬删除）：通知 planner，删除不复活任务。
+  // 수동 목표 삭제 (하드 삭제): planner에 알리며, 삭제는 작업을 되살리지 않는다.
   deleteGoal: (id: string, goalId: string) => del<{ ok: boolean }>(`/tasks/${id}/goals/${goalId}`),
 
-  // ---- 操作约束管理（总览）----
-  // 本任务全部操作约束（allow/deny）。
+  // ---- 조작 제약 관리 (개요) ----
+  // 이 작업의 모든 조작 제약 (allow/deny).
   taskConstraints: (id: string) =>
     get<{ constraints: TaskConstraint[] | null }>(`/tasks/${id}/constraints`).then((response) => ({
       constraints: arr(response.constraints),
     })),
-  // 新增约束（不通知 planner，下一轮规划自然读到）。
+  // 제약 추가 (planner에 알리지 않으며, 다음 라운드 계획에서 자연스럽게 읽힌다).
   addConstraint: (id: string, text: string, kind: TaskConstraint["kind"]) =>
     post<TaskConstraint>(`/tasks/${id}/constraints`, { text, kind }),
-  // 修改约束（文本 + allow/deny）。
+  // 제약 수정 (텍스트 + allow/deny).
   updateConstraint: (id: string, constraintId: string, text: string, kind: TaskConstraint["kind"]) =>
     patch<TaskConstraint>(`/tasks/${id}/constraints/${constraintId}`, { text, kind }),
-  // 删除约束。
+  // 제약 삭제.
   deleteConstraint: (id: string, constraintId: string) =>
     del<{ ok: boolean }>(`/tasks/${id}/constraints/${constraintId}`),
 
-  // ---- 任务级资产拦截/允许规则（总览）----
+  // ---- 작업 단위 자산 차단/허용 규칙 (개요) ----
   taskInterceptRules: (id: string) =>
     get<{ rules: AssetInterceptRule[] | null }>(`/tasks/${id}/intercept-rules`).then((r) => arr(r.rules)),
   createTaskInterceptRule: (id: string, rule: AssetInterceptRuleInput) =>
@@ -421,14 +421,14 @@ export const api = {
   toggleTaskInterceptRule: (id: string, ruleId: number, enabled: boolean) =>
     post<{ ok: boolean; enabled: boolean }>(`/tasks/${id}/intercept-rules/${ruleId}/toggle`, { enabled }),
 
-  // 本任务测试范围列表（含继承自来源任务的范围）。
+  // 이 작업의 테스트 범위 목록 (출처 작업에서 상속된 범위 포함).
   taskScope: (id: string) => get<{ scope: TaskScopeRow[] }>(`/tasks/${id}/scope`),
-  // 手动新增一条测试范围（kind=company/root_domain/subdomain/ip/cidr）。
+  // 테스트 범위 한 건 수동 추가 (kind=company/root_domain/subdomain/ip/cidr).
   addTaskScope: (id: string, kind: string, value: string, reason?: string) =>
     post<TaskScopeRow>(`/tasks/${id}/scope`, { kind, value, reason }),
-  // 删除本任务的一条测试范围。
+  // 이 작업의 테스트 범위 한 건 삭제.
   deleteTaskScope: (id: string, scopeId: number) => del<{ ok: boolean }>(`/tasks/${id}/scope/${scopeId}`),
-  // 某资产在本任务里关联的意图 / 事实 / 发现（覆盖图节点抽屉用）。
+  // 특정 자산이 이 작업에서 연관된 의도 / 사실 / 발견 사항 (커버리지 그래프 노드 드로어용).
   taskAssetRefs: (id: string, assetId: number) => get<CoverageAssetRefs>(`/tasks/${id}/asset-refs?asset_id=${assetId}`),
 
   // ---- workspace file manager (workDir) ----
@@ -448,19 +448,19 @@ export const api = {
       headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       body: fd,
     });
-    if (!r.ok) throw new Error(`上传失败: ${r.status}`);
+    if (!r.ok) throw new Error(`업로드 실패: ${r.status}`);
     return r.json() as Promise<{ uploaded: number }>;
   },
   workspaceDownload: async (path: string) => {
     let blob: Blob;
     if (MOCK) {
-      blob = new Blob([`（demo）${path} 的下载内容示例。`], { type: "text/plain" });
+      blob = new Blob([`(demo) ${path}의 다운로드 내용 예시입니다.`], { type: "text/plain" });
     } else {
       const token = getToken();
       const r = await fetch(`/api/workspace/download?path=${encodeURIComponent(path)}`, {
         headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       });
-      if (!r.ok) throw new Error(`下载失败: ${r.status}`);
+      if (!r.ok) throw new Error(`다운로드 실패: ${r.status}`);
       blob = await r.blob();
     }
     const objUrl = URL.createObjectURL(blob);
@@ -509,7 +509,7 @@ export const api = {
   taskIntentAssets: (taskId: string) =>
     get<{ assets: IntentAsset[] }>(`/tasks/${taskId}/intent-assets`).then((r) => arr(r.assets)),
 
-  // ---- companies (企业 + 资产范围；归属唯一来源) ----
+  // ---- companies (기업 + 자산 범위; 소속의 유일한 출처) ----
   companies: () => get<Company[]>("/companies").then(arr),
   createCompany: (name: string, scope: CompanyScopeRule[]) =>
     post<{ id: number; created: boolean; scope_added?: number; scope_invalid?: number; scope_errors?: string[] }>(
@@ -551,13 +551,13 @@ export const api = {
     p.set("limit", String(q.pageSize));
     return get<FindingGroupsPage>(`/exploration/findings/groups?${p.toString()}`);
   },
-  // findingAssetTree 取「按资产」视图的左侧树:只含有发现的资产及其祖先,
-  // 节点带子树聚合计数。不分页——树是导航结构,一次取完。
+  // findingAssetTree는 「자산별」 보기의 왼쪽 트리를 가져온다: 발견 사항이 있는 자산과 그 상위 항목만 포함하며,
+  // 노드에는 하위 트리 집계 개수가 붙는다. 페이지네이션 없음 — 트리는 탐색 구조이므로 한 번에 모두 가져온다.
   findingAssetTree: (q: Omit<FindingQuery, "page" | "pageSize">) =>
     get<FindingAssetTree>(`/exploration/findings/asset-tree?${findingFilterParams(q).toString()}`),
   findingStats: () => get<FindingStats>("/exploration/findings/stats"),
-  // exportFindings 触发发现页导出并下载文件。scope=selected 时传 ids(finding_id 列表);
-  // scope=filtered 时传当前筛选(沿用 FindingQuery 的筛选字段);scope=all 忽略筛选。
+  // exportFindings는 발견 페이지 내보내기를 실행하고 파일을 다운로드한다. scope=selected이면 ids(finding_id 목록)를 전달하고,
+  // scope=filtered이면 현재 필터(FindingQuery의 필터 필드 그대로)를 전달하며, scope=all이면 필터를 무시한다.
   exportFindings: async (opts: {
     format: "md-single" | "md-zip" | "csv" | "json";
     scope: "filtered" | "all" | "selected";
@@ -576,7 +576,7 @@ export const api = {
     });
     if (!r.ok) throw new Error(`export: ${r.status}`);
     const blob = await r.blob();
-    // 文件名优先取后端 Content-Disposition,取不到则用默认名。
+    // 파일 이름은 백엔드 Content-Disposition을 우선 사용하고, 없으면 기본 이름을 쓴다.
     const disp = r.headers.get("Content-Disposition") ?? "";
     const m = disp.match(/filename="?([^"]+)"?/);
     const filename = m?.[1] ?? `findings-export`;
@@ -649,8 +649,8 @@ export const api = {
       { headers: token ? { Authorization: `Bearer ${token}` } : {} },
     );
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: "下载失败" }));
-      throw new Error(error.error ?? "下载失败");
+      const error = await response.json().catch(() => ({ error: "다운로드 실패" }));
+      throw new Error(error.error ?? "다운로드 실패");
     }
     const blob = await response.blob();
     const url = URL.createObjectURL(blob);
@@ -660,16 +660,16 @@ export const api = {
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   },
-  // 漏洞链路:该漏洞节点回溯到任务初始节点的子图(节点 + 关系)。
+  // 취약점 체인: 해당 취약점 노드에서 작업 초기 노드까지 거슬러 올라가는 서브그래프 (노드 + 관계).
   findingLineage: (id: string) => get<{ nodes: TaskNode[]; edges: Edge[] }>(`/exploration/findings/${id}/lineage`),
   setFindingStatus: (id: string, status: FindingStatus) => patch<Finding>(`/exploration/findings/${id}`, { status }),
   setFindingSeverity: (id: string, severity: Severity) => patch<Finding>(`/exploration/findings/${id}`, { severity }),
-  // 一次保存漏洞的名称/类别/严重等级(发现列表行内编辑用),只传出现的字段。
+  // 취약점의 이름/분류/심각도를 한 번에 저장 (발견 목록 행 내 편집용), 변경된 필드만 전달한다.
   updateFinding: (
     id: string,
     fields: { name?: string; vulnclass?: string; severity?: Severity; status?: FindingStatus },
   ) => patch<Finding>(`/exploration/findings/${id}`, fields),
-  // 删除漏洞:移除 findings 记录 + 来源探索节点(从发现列表/任务发现 Tab/探索图一并消失)。
+  // 취약점 삭제: findings 레코드 + 출처 탐색 노드 제거 (발견 목록/작업 발견 탭/탐색 그래프에서 함께 사라진다).
   deleteFinding: (id: string) => del<{ deleted: boolean; id: number }>(`/exploration/findings/${id}`),
   findingRetests: (id: string) =>
     get<{ retests: FindingRetest[] }>(`/exploration/findings/${encodeURIComponent(id)}/retests`).then((r) =>
@@ -698,7 +698,7 @@ export const api = {
       .then(arr)
       .catch(() => [] as ConvTokenSummary[]),
   explorationGraph: (task?: string) => get<{ nodes: TaskNode[]; edges: Edge[] }>(`/exploration/graph${tq(task)}`),
-  // 播报板:服务端按创建顺序分页的探索节点(默认最新在前)。
+  // 방송판: 서버가 생성 순서대로 페이지를 나눈 탐색 노드 (기본값은 최신순).
   explorationNodes: (task: string, query: ExplorationNodeQuery = {}) => {
     const q = new URLSearchParams();
     if (task) q.set("task", task);
@@ -821,9 +821,9 @@ export const api = {
     tavily_search_api_key?: string;
   }) => post<{ ok: boolean; error?: string; count?: number; backend?: string }>(`/settings/web-search/test`, patch),
 
-  // ---- 漏洞 IM 推送 ----
-  // 渠道是多实例资源（同一类型可配多个机器人、各有过滤规则），因此独立成组，
-  // 不塞进扁平的 settings 键值里。
+  // ---- 취약점 IM 푸시 ----
+  // 채널은 다중 인스턴스 리소스(같은 유형에 여러 봇을 설정할 수 있고 각자 필터 규칙을 가짐)이므로 별도 그룹으로 분리하며,
+  // 평평한 settings 키-값에 넣지 않는다.
   notifyMeta: () => get<NotificationMeta>(`/notify/meta`),
   notifyChannels: () =>
     get<{ channels: NotificationChannel[] }>(`/notify/channels`).then((r) => arr(r.channels)),
@@ -836,7 +836,7 @@ export const api = {
     filter?: NotificationFilter;
     rate_per_min?: number;
   }) => post<{ id: number }>(`/notify/channels`, payload),
-  // PATCH 语义：只提交要改的字段。config 里的掩码值原样回传即表示「保持原值」。
+  // PATCH 의미: 바꿀 필드만 제출한다. config의 마스킹된 값을 그대로 돌려보내면 「기존 값 유지」를 의미한다.
   notifyUpdateChannel: (
     id: number,
     payload: {
@@ -850,7 +850,7 @@ export const api = {
     },
   ) => patch<{ id: number }>(`/notify/channels/${id}`, payload),
   notifyDeleteChannel: (id: number) => del<{ ok: boolean }>(`/notify/channels/${id}`),
-  // 同步发一条测试消息；失败时后端会把渠道的原始错误回传，供排查配置。
+  // 테스트 메시지를 동기로 전송한다; 실패하면 백엔드가 채널의 원본 오류를 돌려주어 설정 문제를 파악할 수 있게 한다.
   notifyTestChannel: (id: number) => post<{ ok: boolean; latency_ms: number }>(`/notify/channels/${id}/test`),
   notifyDeliveries: (q: { channelId?: number; state?: string; page?: number; pageSize?: number } = {}) => {
     const p = new URLSearchParams();
@@ -880,7 +880,7 @@ export const api = {
   chat: (message: string, task?: string, attachments?: ChatAttachment[], seg?: number) =>
     post<{ reply: string; mode: string }>(`/chat${tq(task)}`, { message, attachments, seg }),
   chatStatus: (taskId: string) => get<{ running: boolean }>(`/tasks/${taskId}/chat/status`),
-  // 方式1 文件上传:落到会话/任务工作目录 uploads/，返回可供 agent Read 的相对路径。
+  // 방식 1 파일 업로드: 대화/작업 작업 디렉터리 uploads/에 저장하고, agent가 Read 할 수 있는 상대 경로를 반환한다.
   chatUpload: async (scope: "task" | "session" | "staging", id: string, files: File[]) => {
     if (MOCK)
       return {
@@ -899,7 +899,7 @@ export const api = {
       headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       body: fd,
     });
-    if (!r.ok) throw new Error(`上传失败: ${r.status} ${await r.text()}`);
+    if (!r.ok) throw new Error(`업로드 실패: ${r.status} ${await r.text()}`);
     return r.json() as Promise<{ attachments: ChatAttachment[] }>;
   },
   stopChat: (taskId: string) => post<{ status: string }>(`/tasks/${taskId}/chat/stop`, {}),
@@ -939,10 +939,10 @@ export const api = {
     thinking_type = "",
     reasoning_effort = "",
     profile_id?: number,
-    streaming = true, // 用该配置真实的收发模式来测，别让"流式能通、非流式不通"漏到会话里
-    session_header_key = "", // 非空=测试请求也带该自定义会话头（值为一次性 session id）
+    streaming = true, // 이 설정의 실제 송수신 모드로 테스트하여, "스트리밍은 되지만 비스트리밍은 안 됨"이 대화에서 드러나지 않는 일이 없게 한다
+    session_header_key = "", // 비어 있지 않음=테스트 요청에도 해당 커스텀 세션 헤더를 붙임 (값은 일회용 session id)
   ) =>
-    // reply = 模型实际回复(已截断);一个字都不回的配置后端直接判失败
+    // reply = 모델의 실제 응답(잘림 처리됨); 한 글자도 응답하지 않는 설정은 백엔드가 곧바로 실패로 판정한다
     post<{ ok: boolean; error?: string; latency_ms?: number; model?: string; reply?: string }>("/llm/test", {
       provider,
       model,
@@ -967,23 +967,23 @@ export const api = {
     rate_per_second?: number;
     rate_per_minute?: number;
     context_window_k?: number;
-    thinking_type?: string; // ""(不发送)|"disabled"|"enabled"
-    reasoning_effort?: string; // ""(不发送)|"low"|"medium"|"high"|"xhigh"|"max"
-    priority?: number; // 轮询顺位，越大越先用
-    pool_exclude?: boolean; // true=不作为故障转移目标
-    streaming?: boolean; // true(默认)=流式 | false=非流式
-    max_tokens?: number; // 单次回复输出上限；0=不发送，由服务端默认值决定
-    max_tokens_field?: string; // ""=max_tokens(默认) | "max_completion_tokens"（仅 openai 格式）
-    session_header_key?: string; // 非空=每次请求带该 HTTP 头，头值=当前会话 session id；""=不发送
-    retry?: LLMRetryOverride; // 本配置的重试覆盖；各项留 0 = 跟随全局重试策略
+    thinking_type?: string; // ""(전송 안 함)|"disabled"|"enabled"
+    reasoning_effort?: string; // ""(전송 안 함)|"low"|"medium"|"high"|"xhigh"|"max"
+    priority?: number; // 라운드 로빈 순위, 클수록 먼저 사용
+    pool_exclude?: boolean; // true=페일오버 대상으로 쓰지 않음
+    streaming?: boolean; // true(기본)=스트리밍 | false=비스트리밍
+    max_tokens?: number; // 1회 응답 출력 상한; 0=전송 안 함, 서버 기본값이 결정
+    max_tokens_field?: string; // ""=max_tokens(기본) | "max_completion_tokens" (openai 형식 전용)
+    session_header_key?: string; // 비어 있지 않음=매 요청에 해당 HTTP 헤더를 붙이며 헤더 값=현재 대화 session id; ""=전송 안 함
+    retry?: LLMRetryOverride; // 이 설정의 재시도 덮어쓰기; 각 항목이 0이면 전역 재시도 정책을 따름
   }) => post<{ id: number }>("/llm/profiles", p),
   deleteLLMProfile: (id: string) => del<{ deleted: number }>(`/llm/profiles/${id}`),
   activateLLMProfile: (id: string) => post<{ ok: boolean }>("/llm/profiles/active", { id: Number(id) }),
-  // 轮询链的实际顺序 + 各配置的熔断状态。
+  // 라운드 로빈 체인의 실제 순서 + 각 설정의 서킷 브레이커 상태.
   llmPool: () => get<LLMPoolStatus>("/llm/pool"),
-  // 清除熔断，让下一次调用立刻重试该配置；不传 id = 全部清除。
+  // 서킷 브레이커를 해제하여 다음 호출이 즉시 해당 설정을 재시도하게 한다; id를 전달하지 않으면 전부 해제.
   resetLLMPool: (id?: string) => post<LLMPoolStatus>("/llm/pool/reset", { id: id ? Number(id) : 0 }),
-  // 全局重试策略（五层各自的次数+间隔）。全 0 = 全部走内置默认。
+  // 전역 재시도 정책 (5개 계층 각각의 횟수+간격). 모두 0 = 전부 내장 기본값 사용.
   llmRetryPolicy: () => get<LLMRetryPolicy>("/llm/retry-policy"),
   saveLLMRetryPolicy: (p: LLMRetryPolicy) => post<LLMRetryPolicy>("/llm/retry-policy", p),
   fetchLLMModels: (provider: string, base_url: string, api_key: string, proxy = "", profile_id?: number) =>
@@ -1038,13 +1038,13 @@ export const api = {
   saveAgentPrompt: (key: string, template: string, note = "") =>
     put<{ version: number }>(`/agents/${key}/prompt`, { template, note }),
   resetAgentPrompt: (key: string) => post<{ version: number }>(`/agents/${key}/prompt/reset`, {}),
-  // 收尾提示词(超时/步数耗尽的 settlement 提示);prompt 空串=清除覆盖、用内置默认;
-  // max_turns 省略则不动、传 0=用内置默认轮数
+  // 마무리 프롬프트(시간 초과/단계 소진 시의 settlement 프롬프트); prompt가 빈 문자열이면 덮어쓰기를 지우고 내장 기본값 사용;
+  // max_turns를 생략하면 건드리지 않고, 0을 전달하면 내장 기본 라운드 수 사용
   saveAgentWrapup: (key: string, prompt: string, maxTurns?: number) =>
     put<{ ok: boolean }>(`/agents/${key}/wrapup`, { prompt, max_turns: maxTurns }),
   resetAgentWrapup: (key: string) =>
     post<{ ok: boolean; wrapup_default: string; wrapup_max_turns_default: number }>(`/agents/${key}/wrapup/reset`, {}),
-  // 任务级超时收尾词(仅 worker/planner);prompt 空=清除、用内置默认
+  // 작업 단위 시간 초과 마무리 문구 (worker/planner 전용); prompt가 비어 있으면 지우고 내장 기본값 사용
   saveAgentTaskTimeoutWrapup: (key: string, prompt: string, maxTurns?: number) =>
     put<{ ok: boolean }>(`/agents/${key}/wrapup/task-timeout`, { prompt, max_turns: maxTurns }),
   resetAgentTaskTimeoutWrapup: (key: string) =>
@@ -1052,7 +1052,7 @@ export const api = {
       `/agents/${key}/wrapup/task-timeout/reset`,
       {},
     ),
-  // P3 triggers (仅自定义 agent)
+  // P3 triggers (커스텀 agent 전용)
   agentTriggers: (key: string) =>
     get<{ triggers: AgentTrigger[] }>(`/agents/${key}/triggers`).then((r) => arr(r.triggers)),
   createTrigger: (key: string, t: Omit<AgentTrigger, "id" | "agent_key" | "last_fire">) =>
@@ -1063,7 +1063,7 @@ export const api = {
   saveAgentConfig: (
     key: string,
     patch: {
-      llm_profile_id?: number | null; // number=绑定；null=解绑(跟随任务/全局)；缺省=不动
+      llm_profile_id?: number | null; // number=바인딩; null=바인딩 해제(작업/전역을 따름); 생략=변경 없음
       max_turns?: number;
       run_seconds?: number;
       web_search?: boolean;
@@ -1083,12 +1083,12 @@ export const api = {
   setAgentVisibility: (key: string, mcp: number[], skill: string[]) =>
     put<{ ok: boolean }>(`/agents/${key}/visibility`, { mcp, skill }),
 
-  // ---- tools (内置工具目录) ----
+  // ---- tools (내장 도구 카탈로그) ----
   tools: () => get<{ tools: Tool[] }>("/tools").then((r) => arr(r.tools)),
   saveTool: (key: string, patch: Pick<Tool, "description" | "schema" | "agents" | "enabled">) =>
     put<{ ok: boolean }>(`/tools/${key}`, patch),
   resetTool: (key: string) => post<{ ok: boolean }>(`/tools/${key}/reset`, {}),
-  // custom tools (自定义工具)
+  // custom tools (커스텀 도구)
   createCustomTool: (
     t: Pick<Tool, "key" | "description" | "schema" | "agents" | "enabled" | "kind" | "exec" | "deferred">,
   ) => post<{ key: string }>("/tools/custom", t),
@@ -1108,7 +1108,7 @@ export const api = {
   mcpTools: (id: number) => get<{ tools: MCPTool[] }>(`/mcp/${id}/tools`).then((r) => arr(r.tools)),
   refreshMcpServer: (id: number) => post<{ tools: MCPTool[] }>(`/mcp/${id}/refresh`, {}).then((r) => arr(r.tools)),
 
-  // ---- 资产同步 (ScopeSentry 数据源) ----
+  // ---- 자산 동기화 (ScopeSentry 데이터 소스) ----
   ssStatus: () =>
     get<{ exists: boolean; configured: boolean; enabled: boolean; reachable: boolean; url?: string; tools: string[] }>(
       "/sync/scopesentry/status",
@@ -1137,7 +1137,7 @@ export const api = {
       errors: string[] | null;
     }>("/sync/scopesentry/sync", body),
 
-  // ---- skills (文件系统) ----
+  // ---- skills (파일 시스템) ----
   skills: () => get<{ skills: SkillItem[] }>("/skills").then((r) => arr(r.skills)),
   createSkill: (s: {
     name: string;
@@ -1148,7 +1148,7 @@ export const api = {
     instructions?: string;
   }) => post<{ name: string }>("/skills", s),
   // uploadSkill installs a skill from a .zip (multipart). Surfaces the backend
-  // error text (e.g. 已存在 / 缺少 SKILL.md) so the UI can show a precise message.
+  // error text (e.g. 이미 존재함 / SKILL.md 누락) so the UI can show a precise message.
   uploadSkill: async (file: File, overwrite = false): Promise<{ name: string; files: number }> => {
     if (MOCK) return { name: file.name.replace(/\.zip$/i, ""), files: 1 };
     const fd = new FormData();
@@ -1160,7 +1160,7 @@ export const api = {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
     const body = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(body?.error || `上传失败(${r.status})`);
+    if (!r.ok) throw new Error(body?.error || `업로드 실패(${r.status})`);
     return body;
   },
   deleteSkill: (name: string) => del<{ deleted: string }>(`/skills/${name}`),
@@ -1186,7 +1186,7 @@ export const api = {
   toggleVisibility: (agentId: string, kind: string, resourceId: number, visible: boolean) =>
     post<{ ok: boolean }>("/visibility/toggle", { agent_id: agentId, kind, resource_id: resourceId, visible }),
 
-  // ---- visibility (Skill，按名称) ----
+  // ---- visibility (Skill, 이름 기준) ----
   skillVisibility: (name: string) => get<{ agents: string[] }>(`/visibility/skill/${name}`).then((r) => arr(r.agents)),
   toggleSkillVisibility: (agentId: string, skillName: string, visible: boolean) =>
     post<{ ok: boolean }>("/visibility/skill/toggle", { agent_id: agentId, skill_name: skillName, visible }),
@@ -1201,7 +1201,7 @@ export const api = {
   toggleInterceptRule: (id: number, enabled: boolean) =>
     post<{ ok: boolean; enabled: boolean }>(`/intercept/rules/${id}/toggle`, { enabled }),
 
-  // ---- asset intercept rules（资产拦截：全局黑名单） ----
+  // ---- asset intercept rules (자산 차단: 전역 블랙리스트) ----
   assetInterceptRules: () => get<{ rules: AssetInterceptRule[] }>("/asset-intercept/rules").then((r) => arr(r.rules)),
   createAssetInterceptRule: (rule: Pick<AssetInterceptRule, "enabled" | "kind" | "pattern" | "note">) =>
     post<AssetInterceptRule>("/asset-intercept/rules", rule),
@@ -1239,7 +1239,7 @@ export const api = {
       total: r.total ?? r.items?.length ?? 0,
     })),
 
-  // ---- intercept tool-config (全局工具拦截范围) ----
+  // ---- intercept tool-config (전역 도구 차단 범위) ----
   interceptGetToolConfig: async (): Promise<{ enabled_tools: string[] }> => {
     if (MOCK) return { enabled_tools: ["bash"] };
     const token = getToken();
@@ -1263,7 +1263,7 @@ export const api = {
     if (!r.ok) throw new Error(await r.text());
   },
 
-  // ---- intercept LLM judge (模型兜底审批,全局配置) ----
+  // ---- intercept LLM judge (모델 폴백 승인, 전역 설정) ----
   interceptGetJudgeConfig: () => get<JudgeConfig>("/intercept/judge"),
   interceptSetJudgeConfig: (cfg: JudgeConfig) => put<{ ok: boolean }>("/intercept/judge", cfg),
   interceptJudgeUsage: (days = 30) => get<JudgeUsage>(`/intercept/judge/usage?days=${days}`),
@@ -1277,7 +1277,7 @@ export const api = {
     sp.set("size", String(params?.size ?? 50));
     return get<{ commands: CommandRecord[]; total: number }>(`/commands?${sp}`);
   },
-  // 各工具调用次数；沿用列表的 task/q 筛选，统计的是整个结果集而非当前页。
+  // 도구별 호출 횟수; 목록의 task/q 필터를 따르며, 현재 페이지가 아니라 전체 결과 집합을 집계한다.
   commandStats: (params?: { task?: string; q?: string }) => {
     const sp = new URLSearchParams();
     if (params?.task) sp.set("task", params.task);
@@ -1298,19 +1298,19 @@ export const api = {
   llmRecordDetail: (id: number) => get<LLMRecordDetail>(`/llm/records/${id}`),
   llmTasks: () => get<{ tasks: LLMTask[] }>(`/llm/records/tasks`),
   llmRecordsDeleteTask: (task: string) => del<{ deleted: number }>(`/llm/records?task=${encodeURIComponent(task)}`),
-  // 按模型聚合本任务的 token 用量（来自常开的 llm_usage 计量账本，逐次调用精确，
-  // per-agent 绑定 / 轮询 / 中断消耗都覆盖）。
+  // 모델별로 이 작업의 token 사용량을 집계한다 (항상 켜져 있는 llm_usage 계량 장부 기준, 호출마다 정확하며,
+  // per-agent 바인딩 / 라운드 로빈 / 중단 소모까지 모두 포함).
   tokensByModel: (task: string) =>
     get<{ models: ModelTokenStat[] }>(`/llm/records/by-model?task=${encodeURIComponent(task)}`),
 
-  // ---- 一键更新 ----
-  // 检查以后端为准：下载是后端做的，浏览器能连 GitHub 而服务器连不上的情况很常见
-  // （服务器在内网、代理只配在浏览器上），那时点更新必然失败。
-  // 后端对 GitHub 的查询结果有 30 分钟缓存（未认证的 GitHub API 是 60 次/小时/IP，
-  // 顶栏每次整页加载都会查一次，不缓存会很快耗光配额）。force=true 强制回源，
-  // 留给用户显式点「检查更新」时用。
+  // ---- 원클릭 업데이트 ----
+  // 확인은 백엔드 기준이다: 다운로드는 백엔드가 수행하므로, 브라우저는 GitHub에 접속되지만 서버는 접속되지 않는 경우가 흔하다
+  // (서버가 내부망에 있고 프록시가 브라우저에만 설정된 경우). 그 경우 업데이트를 눌러도 반드시 실패한다.
+  // 백엔드의 GitHub 조회 결과는 30분 캐시된다 (비인증 GitHub API는 IP당 시간당 60회이며,
+  // 상단바가 페이지 전체를 로드할 때마다 조회하므로 캐시하지 않으면 할당량이 금방 소진된다). force=true는 원본 재조회를 강제하며,
+  // 사용자가 「업데이트 확인」을 명시적으로 눌렀을 때 쓰도록 남겨 둔다.
   checkUpdate: (force = false) => get<UpdateCheck>(`/update/check${force ? "?force=1" : ""}`),
-  // 202 即返回，实际下载在后台跑，进度走 /api/update/stream。
+  // 202로 즉시 반환되며, 실제 다운로드는 백그라운드에서 실행되고 진행 상황은 /api/update/stream으로 전달된다.
   applyUpdate: () => post<{ ok: boolean; target: string }>(`/update/apply`),
   rollbackUpdate: () => post<{ ok: boolean }>(`/update/rollback`),
 };

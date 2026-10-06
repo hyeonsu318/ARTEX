@@ -114,7 +114,7 @@ function HighlightedBody({ body, format }: { body: string; format: BodyFormat })
 export function HttpCodeBlock({ raw }: { raw: string }) {
   const [wrapLines, setWrapLines] = React.useState(true);
   const [copied, setCopied] = React.useState(false);
-  const value = raw || "（空）";
+  const value = raw || "(비어 있음)";
   const lines = value.replaceAll("\r\n", "\n").split("\n");
   const separator = lines.indexOf("");
   const body = separator >= 0 ? lines.slice(separator + 1).join("\n") : "";
@@ -132,7 +132,7 @@ export function HttpCodeBlock({ raw }: { raw: string }) {
       setCopied(true);
       return;
     }
-    toast.error("复制失败，请使用 Ctrl/Cmd+A 后复制");
+    toast.error("복사에 실패했습니다. Ctrl/Cmd+A로 전체 선택 후 복사하세요");
   };
 
   const renderLine = (line: string, index: number) => {
@@ -151,14 +151,14 @@ export function HttpCodeBlock({ raw }: { raw: string }) {
               type="button"
               variant="ghost"
               size="icon-xs"
-              aria-label={wrapLines ? "关闭自动换行" : "开启自动换行"}
+              aria-label={wrapLines ? "자동 줄바꿈 끄기" : "자동 줄바꿈 켜기"}
               aria-pressed={wrapLines}
               onClick={() => setWrapLines((current) => !current)}
             >
               <WrapTextIcon />
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="bottom">{wrapLines ? "关闭自动换行" : "开启自动换行"}</TooltipContent>
+          <TooltipContent side="bottom">{wrapLines ? "자동 줄바꿈 끄기" : "자동 줄바꿈 켜기"}</TooltipContent>
         </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -166,19 +166,19 @@ export function HttpCodeBlock({ raw }: { raw: string }) {
               type="button"
               variant="ghost"
               size="icon-xs"
-              aria-label={copied ? "已复制报文" : "复制报文"}
+              aria-label={copied ? "패킷 복사됨" : "패킷 복사"}
               onClick={() => void copyPacket()}
             >
               {copied ? <CheckIcon /> : <CopyIcon />}
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="bottom">{copied ? "已复制" : "复制报文"}</TooltipContent>
+          <TooltipContent side="bottom">{copied ? "복사됨" : "패킷 복사"}</TooltipContent>
         </Tooltip>
       </div>
       {/* biome-ignore lint/a11y/useSemanticElements: textarea cannot preserve line numbers and syntax-highlighting markup. */}
       <div
         role="textbox"
-        aria-label="HTTP 报文代码"
+        aria-label="HTTP 패킷 코드"
         aria-multiline="true"
         aria-readonly="true"
         tabIndex={0}

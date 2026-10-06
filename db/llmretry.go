@@ -5,18 +5,19 @@ import (
 	"time"
 )
 
-// LLM 重试策略：五层重试的「次数 + 间隔」全局配置，见 docs/LLM重试设计.md。
-// 存在 settings 表的一个 JSON 值里 —— 它是整机一份的运行参数，不值得为它开一张表；
-// 读取走内置默认兜底，所以键不存在(全新库/从未配置过)时行为与写死常量时代完全一致。
+// LLM 재시도 정책: 5개 레이어 재시도의 "횟수 + 간격" 전역 설정. docs/LLM重试设计.md 참고.
+// settings 테이블의 JSON 값 하나로 저장한다 — 전체 인스턴스에 하나뿐인 런타임 파라미터라
+// 별도 테이블을 둘 가치가 없다; 조회 시 내장 기본값으로 폴백하므로, 키가 없을 때(신규 DB/한 번도
+// 설정하지 않음)의 동작은 하드코딩 상수였던 시절과 완전히 동일하다.
 
 const settingLLMRetryPolicy = "llm_retry_policy"
 
 // RetryRule is one layer's knob pair. The zero value means "unset":
 //
-//	Attempts   0 = 用内置默认次数; -1 = 关闭该层重试; >0 = 用该值
-//	IntervalMS 0 = 用该层原本的间隔策略(通常是指数退避); >0 = 改用固定毫秒间隔
+//	Attempts   0 = 내장 기본 횟수 사용; -1 = 이 레이어 재시도 끔; >0 = 해당 값 사용
+//	IntervalMS 0 = 이 레이어 고유의 간격 정책 사용(보통 지수 백오프); >0 = 고정 밀리초 간격으로 대체
 //
-// -1 是「显式关掉」而不是「0 次」，因为 0 已经被「未配置」占用了。
+// -1은 "명시적으로 끔"이며 "0회"가 아니다. 0은 이미 "미설정"의 의미로 쓰이고 있기 때문이다.
 type RetryRule struct {
 	Attempts   int `json:"attempts"`
 	IntervalMS int `json:"interval_ms"`
@@ -76,20 +77,20 @@ func (o RetryOverride) Clamped() RetryOverride {
 	return o
 }
 
-// LLMRetryPolicy holds the五层 retry configuration. Connect/Empty/Stream are the
+// LLMRetryPolicy holds the 5개 레이어 retry configuration. Connect/Empty/Stream are the
 // per-request layers (a profile may override them, see LLMProfile.Retry);
 // Breaker and Intent are process-wide by nature and live only here.
 type LLMRetryPolicy struct {
-	// Connect：SDK 建连重试(连接重置/超时/429/5xx，流开始前)。默认 3 次、指数退避。
+	// Connect: SDK 연결 수립 재시도(연결 재설정/타임아웃/429/5xx, 스트림 시작 전). 기본 3회, 지수 백오프.
 	Connect RetryRule `json:"connect"`
-	// Empty：SDK 空响应重试(完成但无 content block，仅 openai 格式)。默认 2 次、指数退避。
+	// Empty: SDK 빈 응답 재시도(완료됐지만 content block이 없음, openai 포맷에서만). 기본 2회, 지수 백오프.
 	Empty RetryRule `json:"empty"`
-	// Stream：同 provider 安全窗口重试(未交付输出前的断流重放)。默认 2 次、0.5s 起指数(封顶 4s)。
+	// Stream: 동일 provider 안전 윈도우 재시도(출력이 전달되기 전의 스트림 끊김 재생). 기본 2회, 0.5s부터 지수(상한 4s).
 	Stream RetryRule `json:"stream"`
-	// Breaker：轮询熔断。Attempts=连续几次瞬时失败触发熔断(默认 3，-1=瞬时失败不熔断，
-	// 硬失败如余额不足/密钥失效仍立即熔断)；IntervalMS=固定冷却时长(0=默认 1/5/30min 梯度)。
+	// Breaker: 폴링 서킷 브레이커. Attempts=연속 몇 번의 일시적 실패에서 차단할지(기본 3, -1=일시적 실패로는
+	// 차단하지 않음, 잔액 부족/키 무효 같은 하드 실패는 그래도 즉시 차단됨); IntervalMS=고정 냉각 시간(0=기본 1/5/30분 단계).
 	Breaker RetryRule `json:"breaker"`
-	// Intent：worker 以 model_error 收场后的整条意图重跑。默认 2 次、固定 3s。
+	// Intent: worker가 model_error로 끝난 뒤 의도 전체를 재실행. 기본 2회, 고정 3s.
 	Intent RetryRule `json:"intent"`
 }
 

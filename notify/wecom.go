@@ -7,37 +7,41 @@ import (
 	"fmt"
 )
 
-// weComMarkdownLimit 是企微群机器人 markdown content 的硬上限（字节，非字符）。
-// 这是全部六个渠道里最紧的限制，也是 TruncateBytes 存在的主要原因。
+// weComMarkdownLimit 는 기업 위챗 그룹 봇 markdown content의 하드 상한이다(바이트,
+// 문자가 아니다). 여섯 채널 중 가장 빡빡한 제한이며, TruncateBytes가 존재하는
+// 주된 이유이기도 하다.
 const weComMarkdownLimit = 4096
 
-// weComChannel 实现企业微信群机器人。
+// weComChannel 은 기업 위챗 그룹 봇을 구현한다.
 //
-// 平台特性：
-//   - 唯一通过 URL 上的 key 鉴权，不支持加签——所以 webhook 地址本身就是全部凭据。
-//   - markdown content 上限 4096 **字节**，超长整条被拒（不是截断）。中文 3 字节/字，
-//     意味着正文只有一千多字可写，必须客户端截断。
-//   - 限流 20 条/分钟，同样靠客户端限流兜住。
+// 플랫폼 특성:
+//   - URL 상의 key로만 인증하며 서명을 지원하지 않는다——그래서 webhook 주소
+//     자체가 자격증명 전부다.
+//   - markdown content 상한은 4096 **바이트**이며, 넘으면 메시지 전체가 거부된다
+//     (자르는 것이 아니다). 한중일 문자는 3바이트/자이므로, 본문에 천몇백 자밖에
+//     쓸 수 없다는 뜻이라 클라이언트에서 반드시 잘라야 한다.
+//   - 분당 20건 제한도 마찬가지로 클라이언트 쪽 제한으로 막아야 한다.
 type weComChannel struct{}
 
 func (weComChannel) Kind() string { return KindWeCom }
 
 func (weComChannel) DefaultRatePerMin() int { return 20 }
 
-// 企业微信只有 Webhook 一处凭据（URL 上的 key），且它不支持加签——
-// 整个地址就是全部凭据，没有别的字段需要掩码。
+// 기업 위챗은 Webhook 하나만 자격증명이며(URL 상의 key), 서명을 지원하지
+// 않는다——주소 전체가 자격증명이므로 마스킹할 다른 필드가 없다.
 func (weComChannel) SecretKeys() []string { return []string{"webhook"} }
 
-// 企微只有 Webhook 一处字段，它既是目的地也是凭据，因此没有「改地址后残留的凭据」可言。
+// 기업 위챗은 Webhook 하나뿐인 필드이며, 이것이 목적지이자 자격증명이므로
+// "주소를 바꾼 뒤 남는 자격증명" 같은 것은 존재하지 않는다.
 func (weComChannel) DestinationKeys() []string { return []string{"webhook"} }
 
 func (weComChannel) Validate(cfg map[string]any) error {
 	hook := cfgString(cfg, "webhook")
 	if hook == "" {
-		return errors.New("缺少 Webhook 地址")
+		return errors.New("Webhook 주소가 없습니다")
 	}
 	if err := validateHTTPURL(hook); err != nil {
-		return fmt.Errorf("Webhook 地址无效: %w", err)
+		return fmt.Errorf("Webhook 주소가 올바르지 않습니다: %w", err)
 	}
 	return nil
 }
@@ -46,8 +50,9 @@ func (c weComChannel) Send(ctx context.Context, cfg map[string]any, m Message) (
 	if err := c.Validate(cfg); err != nil {
 		return 0, Permanent(err)
 	}
-	// 汇总批可能很长（50 条 × 每条一行 + 前缀），4096 字节很容易超。
-	// 截断在这里做而不是靠平台报错：被拒意味着这一批全丢，而截断至少送达前若干条。
+	// 요약 배치는 꽤 길 수 있어서(50건 × 건당 한 줄 + 접두사), 4096바이트를 쉽게
+	// 넘는다. 자르기는 플랫폼의 거부에 맡기지 않고 여기서 한다: 거부당하면 그
+	// 배치 전체를 잃지만, 잘라내면 적어도 앞쪽 몇 건은 전달된다.
 	content, kept := markdownBody(m, weComMarkdownLimit)
 	payload := map[string]any{
 		"msgtype":  "markdown",
@@ -62,17 +67,20 @@ func (c weComChannel) Send(ctx context.Context, cfg map[string]any, m Message) (
 		ErrMsg  string `json:"errmsg"`
 	}
 	if err := json.Unmarshal(raw, &res); err != nil {
-		return 0, fmt.Errorf("解析企业微信响应失败: %w (%s)", err, snippet(raw))
+		return 0, fmt.Errorf("기업 위챗 응답 파싱 실패: %w (%s)", err, snippet(raw))
 	}
 	if res.ErrCode != 0 {
-		// 45009 是接口调用超过限制——平台的限流窗口会滚动，退避后重试是有效的，
-		// 所以显式归为可重试。走到这里说明客户端 rate_per_min 配得过于激进，
-		// 重试只是兜底，真正的修法是调低该渠道的限流值。
+		// 45009는 API 호출이 제한을 초과했다는 뜻이다——플랫폼의 제한 윈도우는
+		// 흘러가므로, 백오프 후 재시도가 효과가 있어 명시적으로 재시도 가능으로
+		// 분류한다. 여기에 도달했다는 것은 클라이언트의 rate_per_min이 너무
+		// 공격적으로 설정됐다는 뜻이며, 재시도는 임시방편일 뿐 진짜 해결책은
+		// 이 채널의 제한값을 낮추는 것이다.
 		if res.ErrCode == 45009 {
-			return 0, fmt.Errorf("企业微信限流 %d: %s", res.ErrCode, res.ErrMsg)
+			return 0, fmt.Errorf("기업 위챗 제한 초과 %d: %s", res.ErrCode, res.ErrMsg)
 		}
-		// 93000 是 webhook key 无效——永久失败，重试不会自愈。
-		return 0, Permanent(fmt.Errorf("企业微信返回错误 %d: %s", res.ErrCode, res.ErrMsg))
+		// 93000은 webhook key가 올바르지 않다는 뜻이다——영구 실패이며, 재시도로는
+		// 저절로 고쳐지지 않는다.
+		return 0, Permanent(fmt.Errorf("기업 위챗이 오류를 반환함 %d: %s", res.ErrCode, res.ErrMsg))
 	}
 	return kept, nil
 }
